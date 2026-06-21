@@ -44,7 +44,7 @@ Output: `data/cab_rides_with_weather.csv` (637,976 rows × 20 columns).
 - `price_per_mile` — normalizes price across different trip lengths.
 - Time decomposition — `ride_hour`, `is_weekend`, `time_of_day` bucket.
 - `demand_density` — the dataset has no rider/driver counts, so as a demand proxy this buckets (quartiles) how many rides were requested at the same pickup zone within the same hour.
-- `uber_lyft_price_ratio` — same route, same hour, Uber's average price ÷ Lyft's, capturing competitive pricing pressure. Left as `NaN` (not imputed) for the ~3k route+hour windows where only one platform was operating — fabricating a competitor price that didn't exist would be more misleading than a missing value.
+- `uber_lyft_price_ratio` — same route, same hour, Uber's median price-per-mile ÷ Lyft's, capturing competitive pricing pressure. Median rather than mean, and price-per-mile rather than raw price, both for the same reason: a single near-zero-distance ride (an artifact also handled in the surge-proxy step below) can otherwise blow up the average for its whole group, or make the ratio reflect differing trip-length mix between platforms rather than genuine pricing pressure. Left as `NaN` (not imputed) for the ~3k route+hour windows where only one platform was operating — fabricating a competitor price that didn't exist would be more misleading than a missing value.
 - `is_raining` and a normalized `bad_weather_score` (clouds + rain + wind, each scaled to 0–1).
 
 Output: `data/cab_rides_features.csv` (637,976 rows × 29 columns).
@@ -62,9 +62,9 @@ To work around this, `effective_surge` was built as a custom target: each ride's
 | Notebook | Approach | Test R² | Outcome |
 |---|---|---|---|
 | `base_deterministic_model.ipynb` | Rule-based: median `effective_surge` per `demand_density` bucket | **-0.09** | Worse than guessing the mean — the four buckets' medians barely differ (1.118–1.120), so `demand_density` alone carries almost no signal |
-| `00_base_model.ipynb` | XGBoost, default hyperparameters | 0.5615 | Clear improvement over the rule-based baseline |
-| `01_xgboost_tuned.ipynb` | `GridSearchCV` over `max_depth`/`learning_rate` with `TimeSeriesSplit`, `n_estimators` picked via early stopping | 0.5618 | **Dead end** — tuning moved R² by 0.0003, not a meaningful gain |
-| `02_xgboost_pooled_feature.ipynb` | Added an explicit `is_pooled` flag for `Shared`/`UberPool` tiers, the segment with ~2x the error of every other tier | 0.5616 | **Also a dead end** — the model already had this information via the `name` category; the real issue is pooled rides depend on co-rider count, which isn't in the data at all |
+| `00_base_model.ipynb` | XGBoost, default hyperparameters | 0.5590 | Clear improvement over the rule-based baseline |
+| `01_xgboost_tuned.ipynb` | `GridSearchCV` over `max_depth`/`learning_rate` with `TimeSeriesSplit`, `n_estimators` picked via early stopping | 0.5598 | **Dead end** — tuning moved R² by 0.0008, not a meaningful gain |
+| `02_xgboost_pooled_feature.ipynb` | Added an explicit `is_pooled` flag for `Shared`/`UberPool` tiers, the segment with ~2x the error of every other tier | 0.5598 | **Also a dead end** — identical to the tuned model down to the same early-stopped tree count, because `is_pooled` is fully redundant with the `name` category and XGBoost never splits on it; the real issue is pooled rides depend on co-rider count, which isn't in the data at all |
 
 Both "dead end" notebooks are included deliberately — they're documented experiments with a clear hypothesis and an honest negative result, not failed attempts that were deleted.
 
@@ -72,7 +72,7 @@ Both "dead end" notebooks are included deliberately — they're documented exper
 
 **Train/test split is always time-based** (sorted by `ride_time`, last 20% held out), never random — a random split would leak future demand patterns into training.
 
-The model trained in `02_xgboost_pooled_feature.ipynb` (max_depth=6, learning_rate=0.1, early-stopped at 358 trees, with the `is_pooled` feature) is the one served by the API; `scripts/train_model.py` reproduces it as a standalone script and saves the artifacts to `models/`.
+The model trained in `02_xgboost_pooled_feature.ipynb` (max_depth=6, learning_rate=0.1, early-stopped at 349 trees, with the `is_pooled` feature) is the one served by the API; `scripts/train_model.py` reproduces it as a standalone script and saves the artifacts to `models/`.
 
 ## Project structure
 
