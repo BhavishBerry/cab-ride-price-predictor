@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+models/*.joblib
+node_modules/
+.expo/
+data/*.csv
+data/*.xls
