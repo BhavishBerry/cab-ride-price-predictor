@@ -13,7 +13,7 @@ import { LOCATION_COORDS } from './constants/locations';
 // Fill in your machine's LAN IP before running the demo (the phone running
 // Expo Go can't reach "localhost" on your laptop). Find it with
 // `hostname -I` (Linux) or `ipconfig getifaddr en0` (Mac).
-const API_BASE_URL = 'http://192.168.1.68:8000';
+const API_BASE_URL = 'http://172.20.10.12:8000';
 
 const POLL_INTERVAL_MS = 10000;
 const MAX_RIDES = 50;
@@ -127,7 +127,7 @@ export default function App() {
 
     async function fetchNextRide() {
       try {
-        const response = await fetch(`${API_BASE_URL}/next-ride`);
+        const response = await fetch(`${API_BASE_URL}/api/next-ride`);
         const ride: Ride = await response.json();
         if (cancelled) return;
         setConnectionError(false);

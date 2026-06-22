@@ -5,11 +5,12 @@ import joblib
 from xgboost import XGBRegressor
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from helper_functions.prep_data_function import CATEGORICAL_COLS, prepare_train_test
+from helper_functions.prep_data_function import CATEGORICAL_COLS, load_full_holdout, prepare_train_test
 
 MODEL_DIR = "models"
 DATA_PATH = "data/cab_rides_features.csv"
 POOLED_TIERS = ["Shared", "UberPool"]
+HOLDOUT_SAMPLE_SIZE = 500
 
 
 def main():
@@ -46,8 +47,17 @@ def main():
     # API can reapply the same encoding to single rows at inference time.
     category_levels = {col: list(X_train[col].cat.categories) for col in CATEGORICAL_COLS}
 
-    joblib.dump(model, os.path.join(MODEL_DIR, "xgb_model.joblib"))
+    # Native booster format avoids needing scikit-learn/scipy just to unpickle
+    # the sklearn wrapper at serve time — keeps the deployed bundle small.
+    model.get_booster().save_model(os.path.join(MODEL_DIR, "xgb_model.json"))
     joblib.dump(category_levels, os.path.join(MODEL_DIR, "category_levels.joblib"))
+
+    # A small fixed sample to serve from instead of the full 638k-row CSV
+    # (which is gitignored and too large to ship in a deployed function).
+    holdout = load_full_holdout(DATA_PATH)
+    holdout_sample = holdout.sample(n=HOLDOUT_SAMPLE_SIZE, random_state=42)
+    holdout_sample.to_csv(os.path.join(MODEL_DIR, "holdout_sample.csv"), index=False)
+
     print(f"Saved model artifacts to {MODEL_DIR}/")
 
 

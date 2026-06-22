@@ -22,3 +22,15 @@ def prepare_train_test(csv_path:str,test_size=0.2):
     X_test, y_test = test[FEATURE_COLS], test[TARGET_COL]
 
     return X_train,X_test,y_train,y_test
+
+
+def load_full_holdout(csv_path: str, test_size: float = 0.2) -> pd.DataFrame:
+    # Same ride_time-quantile split as prepare_train_test, but keeps every
+    # raw column instead of just FEATURE_COLS, for serving/display purposes.
+    df = pd.read_csv(csv_path, parse_dates=["ride_time"])
+    df = df.sort_values("ride_time")
+
+    split_point = df["ride_time"].quantile(1 - test_size)
+    holdout = df[df["ride_time"] > split_point].reset_index(drop=True)
+
+    return holdout
